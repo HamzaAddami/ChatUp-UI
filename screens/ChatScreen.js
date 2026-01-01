@@ -81,22 +81,36 @@ const confirmBlock = () => {
         [
             { text: "Annuler", style: "cancel" },
             { 
-              text: "Bloquer", 
-              style: "destructive", 
-              onPress: async () => {
-                  try {
-                      // On récupère le numéro via les membres de la conv
-                      const res = await api.get(`/conversation/${conversationId}`);
-                      const phone = res.data.members[0].phoneNumber;
-                      await api.post('/users/block', { phoneNumber: phone });
-                      navigation.goBack();
-                  } catch (e) { Alert.alert("Erreur", "Action impossible"); }
-              } 
+                text: "Bloquer", 
+                style: "destructive", 
+                onPress: async () => {
+                    try {
+                        // 1. Récupérer les détails de la conversation pour avoir le numéro
+                        const res = await api.get(`/conversation/${conversationId}`);
+                        
+                        // 2. Trouver l'autre membre (celui qui n'est pas l'utilisateur actuel)
+                        const otherUser = res.data.members.find(m => m.userId !== user.id);
+                        
+                        if (otherUser && otherUser.phoneNumber) {
+                            // 3. Appeler l'API avec le format correspondant à ton record C# BlockUserRequest
+                            await api.post('/users/block', { 
+                                phoneNumber: otherUser.phoneNumber 
+                            });
+
+                            Alert.alert("Succès", "Utilisateur bloqué.");
+                            navigation.goBack(); // Retourner à la liste des discussions
+                        } else {
+                            throw new Error("Numéro de téléphone introuvable");
+                        }
+                    } catch (e) {
+                        console.error(e);
+                        Alert.alert("Erreur", "Impossible de bloquer cet utilisateur.");
+                    }
+                } 
             }
         ]
     );
 };
-
 const processMessages = async (msgs, append = false) => {
   const decryptedPromises = msgs.map(async (msg) => {
     const plainText = await decryptMessage(msg.cipherText, msg.iv);

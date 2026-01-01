@@ -8,16 +8,15 @@ export const useChatHub = () => {
   const { user } = useContext(AuthContext);
   const [connection, setConnection] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [typingStatus, setTypingStatus] = useState({}); 
+  const [onlineUsers, setOnlineUsers] = useState(new Set());
 
   useEffect(() => {
     if (!user?.token) return;
 
     const newConnection = new signalR.HubConnectionBuilder()
-      .withUrl(HubUrl, {
-        accessTokenFactory: () => user.token,
-      })
+      .withUrl(HubUrl, { accessTokenFactory: () => user.token })
       .withAutomaticReconnect()
-      .configureLogging(signalR.LogLevel.Information)
       .build();
 
     setConnection(newConnection);
@@ -25,21 +24,41 @@ export const useChatHub = () => {
 
   useEffect(() => {
     if (connection) {
-      connection
-        .start()
-        .then(() => console.log('🟢 SignalR Connected'))
-        .catch((err) => console.error('🔴 SignalR Error:', err));
+      connection.start()
+        .then(() => {
+          connection.on('ReceiveMessage', (notification) => {
+            setMessages((prev) => [notification.message, ...prev]);
+          });
 
-      connection.on('ReceiveMessage', (notification) => {
-        setMessages((prev) => [notification.message, ...prev]);
-      });
-      
+          // Gestion du statut En Ligne
+          connection.on('UserOnline', (userId) => {
+            setOnlineUsers(prev => new Set(prev).add(userId));
+          });
 
-      return () => {
-        connection.stop();
-      };
+          connection.on('UserOffline', (userId) => {
+            setOnlineUsers(prev => {
+              const next = new Set(prev);
+              next.delete(userId);
+              return next;
+            });
+          });
+
+          // Gestion de la saisie (Typing)
+          connection.on('UserTyping', (notif) => {
+            setTypingStatus(prev => ({
+              ...prev,
+              [notif.conversationId]: {
+                ...prev[notif.conversationId],
+                [notif.userId]: notif.isTyping
+              }
+            }));
+          });
+        })
+        .catch(err => console.error('SignalR Connection Error: ', err));
+
+      return () => connection.stop();
     }
   }, [connection]);
 
-  return { connection, liveMessages: messages };
+  return { connection, liveMessages: messages, typingStatus, onlineUsers };
 };
