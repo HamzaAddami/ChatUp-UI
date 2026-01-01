@@ -36,36 +36,30 @@ export const useChatHub = () => {
           connection.on("ReceiveMessage", (notification) => {
             console.log("📩 New message received:", notification);
             setMessages((prev) => [notification.message, ...prev]);
-            setUnreadCounts((prev) => ({
-              ...prev,
-              [notification.conversationId]:
-                (prev[notification.conversationId] || 0) + 1,
-            }));
+            
+            // N'incrémenter le compteur QUE si le message n'est pas de moi
+            if (notification.message.senderId !== user?.id) {
+              setUnreadCounts((prev) => ({
+                ...prev,
+                [notification.conversationId]:
+                  (prev[notification.conversationId] || 0) + 1,
+              }));
+            }
           });
 
           // ==================== Messages Lus ====================
           connection.on("MessageRead", (statusNotification) => {
-            console.log("✓✓ Message read:", statusNotification);
-            if (
-              statusNotification.conversationId &&
-              statusNotification.readerIds
-            ) {
-              // Réduire le compteur si ce n'est pas moi qui a lu
-              const currentUserId = user?.id;
-              if (!statusNotification.readerIds.includes(currentUserId)) {
-                setUnreadCounts((prev) => {
-                  const currentCount =
-                    prev[statusNotification.conversationId] || 0;
-                  return {
-                    ...prev,
-                    [statusNotification.conversationId]: Math.max(
-                      0,
-                      currentCount - 1
-                    ),
-                  };
-                });
-              }
-            }
+            console.log("✓✓ Message read event:", statusNotification);
+            // Ne rien faire ici - le ChatScreen s'en occupe localement
+          });
+
+          // ==================== Compteur mis à jour ====================
+          connection.on("UpdateUnreadCount", (conversationId, count) => {
+            console.log(`🔔 Update unread count for ${conversationId}: ${count}`);
+            setUnreadCounts((prev) => ({
+              ...prev,
+              [conversationId]: count,
+            }));
           });
 
           // ==================== Statut En Ligne ====================
@@ -113,17 +107,9 @@ export const useChatHub = () => {
           });
 
           // ==================== Compteur de messages non lus ====================
-          connection.on("UnreadCounts", (unreadCounts) => {
-            console.log("🔔 Unread counts received:", unreadCounts);
-            setUnreadCounts(unreadCounts); // C'est un dictionnaire {conversationId: count}
-          });
-
-          connection.on("UpdateUnreadCount", (conversationId, count) => {
-            console.log(`🔔 Unread count for ${conversationId}: ${count}`);
-            setUnreadCounts((prev) => ({
-              ...prev,
-              [conversationId]: count,
-            }));
+          connection.on("UnreadCounts", (counts) => {
+            console.log("🔔 Unread counts received:", counts);
+            setUnreadCounts(counts);
           });
 
           // ==================== Gestion des erreurs ====================
@@ -146,6 +132,12 @@ export const useChatHub = () => {
 
       connection.onreconnected((connectionId) => {
         console.log("✅ Reconnected! ConnectionId:", connectionId);
+        // Rafraîchir les compteurs après reconnexion
+        if (connection?.state === signalR.HubConnectionState.Connected) {
+          connection.invoke("GetUnreadCounts").catch(err => 
+            console.error("Error refreshing counts after reconnect:", err)
+          );
+        }
       });
 
       connection.onclose((error) => {
@@ -157,7 +149,7 @@ export const useChatHub = () => {
         connection.stop();
       };
     }
-  }, [connection]);
+  }, [connection, user?.id]);
 
   // ==================== Méthodes Helper ====================
 
@@ -171,28 +163,27 @@ export const useChatHub = () => {
     }
   };
 
-  const getUnreadCount = async (conversationId) => {
-    await connection.invoke("GetUnreadCount", conversationId);
-};
-
-// CORRECTION : La méthode backend s'appelle "GetUnreadCounts" (au pluriel) sans paramètre
-const refreshAllUnreadCounts = async () => {
-    if (connection?.state === signalR.HubConnectionState.Connected) {
-        try {
-            await connection.invoke("GetUnreadCounts");
-        } catch (err) {
-            console.error("Error getting unread counts:", err);
-        }
-    }
-};
-
-  const markMessagesAsRead = async (conversationId, messageIds) => {
+  const refreshAllUnreadCounts = async () => {
     if (connection?.state === signalR.HubConnectionState.Connected) {
       try {
+        await connection.invoke("GetUnreadCounts");
+      } catch (err) {
+        console.error("Error getting unread counts:", err);
+      }
+    }
+  };
+
+  const markMessagesAsRead = async (conversationId, messageIds) => {
+    if (connection?.state === signalR.HubConnectionState.Connected && messageIds.length > 0) {
+      try {
+        console.log(`📖 Marking ${messageIds.length} messages as read in conversation ${conversationId}`);
+        
         await connection.invoke("MarkMessagesAsRead", {
           ConversationId: conversationId,
           MessageIds: messageIds,
         });
+        
+        // NE PAS mettre à jour localement - attendre la réponse du serveur via UpdateUnreadCount
       } catch (err) {
         console.error("Error marking messages as read:", err);
       }
@@ -208,14 +199,9 @@ const refreshAllUnreadCounts = async () => {
   };
 
   const getConversationUnreadCount = (conversationId) => {
-    return unreadCounts[conversationId] || 0;
-  };
-
-  const resetLocalUnreadCount = (conversationId) => {
-    setUnreadCounts((prev) => ({
-      ...prev,
-      [conversationId]: 0,
-    }));
+    const count = unreadCounts[conversationId] || 0;
+    console.log(`📊 Getting unread count for ${conversationId}: ${count}`);
+    return count;
   };
 
   return {
@@ -226,12 +212,10 @@ const refreshAllUnreadCounts = async () => {
     unreadCounts,
     errors,
     sendTyping,
-    getUnreadCount,
     markMessagesAsRead,
     isUserOnline,
     isUserTyping,
     getConversationUnreadCount,
-    resetLocalUnreadCount,
     refreshAllUnreadCounts
   };
 };

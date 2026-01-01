@@ -17,8 +17,8 @@ export default function ConversationsListScreen({ navigation }) {
     isUserOnline, 
     getConversationUnreadCount,
     isUserTyping,
-    markMessagesAsRead,
-    refreshAllUnreadCounts
+    refreshAllUnreadCounts,
+    unreadCounts
   } = useChatHub();
   
   const userId = user?.id;
@@ -50,34 +50,27 @@ export default function ConversationsListScreen({ navigation }) {
   // Rafraîchir les conversations et compteurs au focus
   useFocusEffect(
     useCallback(() => {
+      console.log("📋 ConversationsListScreen focused - refreshing...");
       loadConversations();
-      refreshAllUnreadCounts();
+      // Petit délai pour s'assurer que le hub est prêt
+      setTimeout(() => {
+        refreshAllUnreadCounts();
+      }, 500);
     }, [])
   );
 
-  // Recharger quand nouveau message
+  // Recharger quand nouveau message arrive
   useEffect(() => {
     if (liveMessages.length > 0) {
       loadConversations();
     }
   }, [liveMessages]);
 
-  // Méthode pour réinitialiser les compteurs côté backend
-  const resetConversationUnreadCount = async (conversationId) => {
-    try {
-      // Récupérer les messages non lus de cette conversation
-      const res = await api.get(`/messages/conversation/${conversationId}`);
-      const unreadIds = res.data
-        .filter(m => m.senderId !== userId && !m.readBy?.includes(userId))
-        .map(m => m.id);
-      
-      if (unreadIds.length > 0) {
-        await markMessagesAsRead(conversationId, unreadIds);
-      }
-    } catch (err) {
-      console.error("Error resetting unread count:", err);
-    }
-  };
+  // Rafraîchir quand les compteurs changent
+  useEffect(() => {
+    // Force un re-render quand les compteurs changent
+    setConversations(prev => [...prev]);
+  }, [unreadCounts]);
 
   // Méthode pour récupérer les membres d'une conversation
   const getOtherUser = (conversation) => {
@@ -133,8 +126,9 @@ export default function ConversationsListScreen({ navigation }) {
       ? item.groupAvatarUrl
       : otherUser?.avatarUrl;
 
-    // Compteur de messages non lus - priorité au hook SignalR
+    // Compteur de messages non lus - utiliser directement le hook
     const unreadCount = getConversationUnreadCount(item.id);
+    console.log(`💬 Rendering conversation ${item.id} with unread count: ${unreadCount}`);
 
     // Typing indicator
     const someoneIsTyping = checkIfSomeoneIsTyping(item);
@@ -157,9 +151,8 @@ export default function ConversationsListScreen({ navigation }) {
     return (
       <TouchableOpacity
         style={styles.card}
-        onPress={async () => {
-          // Marquer comme lu avant de naviguer
-          await resetConversationUnreadCount(item.id);
+        onPress={() => {
+          console.log(`📖 Opening conversation ${item.id}`);
           navigation.navigate('Chat', {
             conversationId: item.id,
             name: displayName
@@ -232,6 +225,7 @@ export default function ConversationsListScreen({ navigation }) {
         contentContainerStyle={conversations.length === 0 ? styles.emptyContent : { paddingVertical: 10 }}
         ListEmptyComponent={renderEmptyState}
         showsVerticalScrollIndicator={false}
+        extraData={unreadCounts} // Force re-render quand les compteurs changent
       />
     </View>
   );

@@ -37,17 +37,7 @@ export default function ChatScreen({ route, navigation }) {
   const [otherUserId, setOtherUserId] = useState(null);
   const [conversationMembers, setConversationMembers] = useState([]);
   const typingTimeoutRef = useRef(null);
-
-  // Bouton de blocage dans le header
-  useEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <TouchableOpacity onPress={confirmBlock} style={{ marginRight: 10 }}>
-          <ShieldAlert size={24} color="#FF3B30" />
-        </TouchableOpacity>
-      ),
-    });
-  }, [navigation, conversationMembers]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Rejoindre la conversation
   useEffect(() => {
@@ -59,12 +49,6 @@ export default function ChatScreen({ route, navigation }) {
           await connection.invoke("JoinConversation", conversationId);
           console.log("✅ Joined conversation:", conversationId);
           await loadConversationInfo();
-        } else {
-          console.log(
-            "⏳ Connection state is:",
-            connection.state,
-            "waiting..."
-          );
         }
       } catch (err) {
         console.error("❌ Join err", err);
@@ -78,7 +62,6 @@ export default function ChatScreen({ route, navigation }) {
         connection &&
         connection.state === signalR.HubConnectionState.Connected
       ) {
-        // Arrêter le typing avant de partir
         if (isTyping) {
           sendTyping(conversationId, false);
         }
@@ -89,12 +72,12 @@ export default function ChatScreen({ route, navigation }) {
     };
   }, [connection, conversationId, connection?.state]);
 
-  // Charger l'historique
+  // Charger l'historique au montage
   useEffect(() => {
     loadHistory();
   }, []);
 
-  // ChatScreen.js - Améliorer la logique de marquage comme lu
+  // Gérer les nouveaux messages en temps réel
   useEffect(() => {
     if (liveMessages.length > 0) {
       const newMsgs = liveMessages.filter(
@@ -104,29 +87,27 @@ export default function ChatScreen({ route, navigation }) {
       );
 
       if (newMsgs.length > 0) {
-        // Traiter les nouveaux messages
         processMessages(newMsgs, true);
 
-        // Marquer comme lu SEULEMENT si l'écran est actif et que l'utilisateur est focus
-        const shouldMarkAsRead = navigation.isFocused();
-
-        if (shouldMarkAsRead) {
+        // Marquer comme lu UNIQUEMENT si c'est l'écran actif et le message vient de quelqu'un d'autre
+        if (navigation.isFocused()) {
           const newMessageIds = newMsgs
             .filter((m) => m.senderId !== user.id)
             .map((m) => m.id);
 
           if (newMessageIds.length > 0) {
-            markMessagesAsRead(conversationId, newMessageIds);
+            setTimeout(() => {
+              markMessagesAsRead(conversationId, newMessageIds);
+            }, 500);
           }
         }
       }
     }
   }, [liveMessages]);
 
-  // Ajouter un effet pour gérer le focus de l'écran
+  // Marquer comme lu quand on revient sur l'écran
   useEffect(() => {
     const unsubscribeFocus = navigation.addListener("focus", () => {
-      // Quand l'écran redevient actif, marquer tous les messages non lus comme lus
       const unreadIds = messages
         .filter((m) => m.senderId !== user.id && !m.readBy?.includes(user.id))
         .map((m) => m.id);
@@ -139,6 +120,42 @@ export default function ChatScreen({ route, navigation }) {
     return unsubscribeFocus;
   }, [navigation, messages]);
 
+  // Écouter les mises à jour de statut de lecture
+  useEffect(() => {
+    if (!connection) return;
+
+    const handleMessageRead = (statusNotification) => {
+      console.log("✓✓ Message read update in ChatScreen:", statusNotification);
+      
+      // Mettre à jour les messages localement
+      setMessages((prev) => 
+        prev.map(msg => {
+          if (statusNotification.messageId === msg.id || 
+              statusNotification.messageIds?.includes(msg.id)) {
+            const updatedReadBy = [...(msg.readBy || [])];
+            statusNotification.readerIds?.forEach(readerId => {
+              if (!updatedReadBy.includes(readerId)) {
+                updatedReadBy.push(readerId);
+              }
+            });
+            return { ...msg, readBy: updatedReadBy };
+          }
+          return msg;
+        })
+      );
+    };
+
+    if (connection.state === signalR.HubConnectionState.Connected) {
+      connection.on("MessageRead", handleMessageRead);
+    }
+
+    return () => {
+      if (connection) {
+        connection.off("MessageRead", handleMessageRead);
+      }
+    };
+  }, [connection, connection?.state]);
+
   // Afficher les erreurs SignalR
   useEffect(() => {
     if (errors && errors.length > 0) {
@@ -147,7 +164,24 @@ export default function ChatScreen({ route, navigation }) {
     }
   }, [errors]);
 
-  // Charger les infos de la conversation
+  // Bouton de blocage dans le header
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={isBlockedByMe ? handleUnblock : confirmBlock}
+          style={{ marginRight: 15 }}
+        >
+          {isBlockedByMe ? (
+            <ShieldCheck size={24} color="#4CD964" />
+          ) : (
+            <ShieldAlert size={24} color="#FF3B30" />
+          )}
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, isBlockedByMe, conversationMembers]);
+
   const loadConversationInfo = async () => {
     try {
       const res = await api.get(`/conversation/${conversationId}`);
@@ -159,7 +193,7 @@ export default function ChatScreen({ route, navigation }) {
       }
 
       const blockedRes = await api.get("/users/blocked");
-      const isBlocked = blockedRes.data.some((u) => u.id === other.userId);
+      const isBlocked = blockedRes.data.some((u) => u.id === other?.userId);
       setIsBlockedByMe(isBlocked);
     } catch (e) {
       console.error("Error loading conversation info:", e);
@@ -188,6 +222,7 @@ export default function ChatScreen({ route, navigation }) {
 
   const loadHistory = async () => {
     try {
+      setIsLoading(true);
       const res = await api.get(`/messages/conversation/${conversationId}`);
       await processMessages(res.data);
 
@@ -197,14 +232,17 @@ export default function ChatScreen({ route, navigation }) {
         .map((m) => m.id);
 
       if (unreadIds.length > 0) {
-        markMessagesAsRead(conversationId, unreadIds);
+        setTimeout(() => {
+          markMessagesAsRead(conversationId, unreadIds);
+        }, 800);
       }
     } catch (e) {
       console.error("Error loading history:", e);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Gérer le typing indicator
   const handleTextChange = (text) => {
     setInputText(text);
 
@@ -227,22 +265,6 @@ export default function ChatScreen({ route, navigation }) {
       sendTyping(conversationId, false);
     }
   };
-  useEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <TouchableOpacity
-          onPress={isBlockedByMe ? handleUnblock : confirmBlock}
-          style={{ marginRight: 15 }}
-        >
-          {isBlockedByMe ? (
-            <ShieldCheck size={24} color="#4CD964" />
-          ) : (
-            <ShieldAlert size={24} color="#FF3B30" />
-          )}
-        </TouchableOpacity>
-      ),
-    });
-  }, [navigation, isBlockedByMe, conversationMembers]);
 
   const handleUnblock = async () => {
     try {
@@ -335,21 +357,22 @@ export default function ChatScreen({ route, navigation }) {
     const otherParticipant = conversationMembers.find(m => m.userId !== user.id);
     const isReadByOther = otherParticipant && 
                          item.readBy && 
+                         Array.isArray(item.readBy) &&
                          item.readBy.includes(otherParticipant.userId);
     
     return (
-        <View style={[styles.bubble, isMe ? styles.myBubble : styles.otherBubble]}>
-            <Text style={[styles.msgText, isMe ? styles.myText : styles.otherText]}>
-                {item.text}
-            </Text>
-            {isMe && (
-                <Text style={styles.readStatus}>
-                    {isReadByOther ? '✓✓' : '✓'}
-                </Text>
-            )}
-        </View>
+      <View style={[styles.bubble, isMe ? styles.myBubble : styles.otherBubble]}>
+        <Text style={[styles.msgText, isMe ? styles.myText : styles.otherText]}>
+          {item.text}
+        </Text>
+        {isMe && (
+          <Text style={styles.readStatus}>
+            {isReadByOther ? '✓✓' : '✓'}
+          </Text>
+        )}
+      </View>
     );
-};
+  };
 
   const renderTypingIndicator = () => {
     if (!otherUserId || !isUserTyping(conversationId, otherUserId)) return null;
@@ -361,6 +384,14 @@ export default function ChatScreen({ route, navigation }) {
       </View>
     );
   };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -396,6 +427,7 @@ export default function ChatScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f2f2f2" },
+  loadingContainer: { justifyContent: "center", alignItems: "center" },
   bubble: { maxWidth: "80%", padding: 10, borderRadius: 15, marginVertical: 5 },
   myBubble: {
     alignSelf: "flex-end",
