@@ -170,7 +170,6 @@ export default function ProfileScreen() {
     setIsEditing(false);
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#007AFF"/></View>;
 
   return (
     <KeyboardAvoidingView 
