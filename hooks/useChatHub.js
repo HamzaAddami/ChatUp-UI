@@ -108,7 +108,6 @@ export const useChatHub = () => {
 
           // ==================== Compteur de messages non lus ====================
           connection.on("UnreadCounts", (counts) => {
-            console.log("🔔 Unread counts received:", counts);
             setUnreadCounts(counts);
           });
 
