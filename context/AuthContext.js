@@ -1,4 +1,3 @@
-// src/context/AuthContext.js
 import React, { createContext, useState, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import api from '../services/api';
@@ -34,11 +33,8 @@ export const AuthProvider = ({ children }) => {
     await SecureStore.setItemAsync('jwt_token', token);
     await SecureStore.setItemAsync('user_id', userId);
 
-    // 1. Générer clés crypto
     const publicKey = await generateAndStoreKeys(userId);
     
-    // 2. Enregistrer la clé publique au backend
-    // Note: On le fait après avoir set le token pour être authentifié
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     await api.post('/keys/register', { publicKey });
 

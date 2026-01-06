@@ -105,10 +105,8 @@ export default function ConversationsListScreen({ navigation }) {
     const isGroup = item.type === "GROUP";
     const otherUser = getOtherUser(item);
     
-    // Online status
     const isOnline = checkOnlineStatus(item);
     
-    // Date
     const date = item.lastMessageAt ? new Date(item.lastMessageAt) : null;
     const dateDisplay = date
       ? (isToday(date)
@@ -116,24 +114,18 @@ export default function ConversationsListScreen({ navigation }) {
           : format(date, 'dd/MM', { locale: fr }))
       : '';
 
-    // Nom affiché
     const displayName = isGroup
       ? item.groupName || "Groupe"
       : otherUser?.nickname || otherUser?.phoneNumber || "Utilisateur";
 
-    // Avatar
     const avatarUrl = isGroup
       ? item.groupAvatarUrl
       : otherUser?.avatarUrl;
 
-    // Compteur de messages non lus - utiliser directement le hook
     const unreadCount = getConversationUnreadCount(item.id);
-    console.log(`💬 Rendering conversation ${item.id} with unread count: ${unreadCount}`);
 
-    // Typing indicator
     const someoneIsTyping = checkIfSomeoneIsTyping(item);
 
-    // Texte de prévisualisation
     let previewText = item.lastMessageText || "Aucun message";
     if (someoneIsTyping) {
       previewText = "Est en train d'écrire...";
@@ -141,7 +133,6 @@ export default function ConversationsListScreen({ navigation }) {
       previewText = previewText.substring(0, 50) + '...';
     }
 
-    // Déterminer le style du texte de prévisualisation
     const previewStyle = [
       styles.msgPreview, 
       someoneIsTyping && styles.typingText,

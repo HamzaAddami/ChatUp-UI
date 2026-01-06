@@ -1,4 +1,3 @@
-// src/screens/ContactsScreen.js
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import api from '../services/api';

@@ -1,4 +1,3 @@
-// src/hooks/useChatHub.js
 import { useEffect, useState, useRef, useContext } from "react";
 import * as signalR from "@microsoft/signalr";
 import { HubUrl } from "../services/api";
@@ -34,7 +33,7 @@ export const useChatHub = () => {
 
           // ==================== Messages ====================
           connection.on("ReceiveMessage", (notification) => {
-            console.log("📩 New message received:", notification);
+            console.log("New message received:", notification);
             setMessages((prev) => [notification.message, ...prev]);
             
             // N'incrémenter le compteur QUE si le message n'est pas de moi
@@ -83,7 +82,7 @@ export const useChatHub = () => {
 
           // ==================== Typing Indicator ====================
           connection.on("UserTyping", (notif) => {
-            console.log("⌨️ User typing:", notif);
+            console.log("User typing:", notif);
             setTypingStatus((prev) => ({
               ...prev,
               [notif.conversationId]: {
@@ -113,7 +112,7 @@ export const useChatHub = () => {
 
           // ==================== Gestion des erreurs ====================
           connection.on("Error", (errorMessage) => {
-            console.error("❌ SignalR Error:", errorMessage);
+            console.error("SignalR Error:", errorMessage);
             setErrors((prev) => [
               ...prev,
               { message: errorMessage, timestamp: new Date() },
@@ -121,12 +120,12 @@ export const useChatHub = () => {
           });
         })
         .catch((err) => {
-          console.error("❌ SignalR Connection Error:", err);
+          console.error("SignalR Connection Error:", err);
         });
 
       // Gestion de la reconnexion
       connection.onreconnecting((error) => {
-        console.log("🔄 Reconnecting...", error);
+        console.log("Reconnecting...", error);
       });
 
       connection.onreconnected((connectionId) => {
@@ -140,11 +139,11 @@ export const useChatHub = () => {
       });
 
       connection.onclose((error) => {
-        console.log("🔴 Connection closed", error);
+        console.log("Connection closed", error);
       });
 
       return () => {
-        console.log("🛑 Stopping SignalR connection");
+        console.log("Stopping SignalR connection");
         connection.stop();
       };
     }
@@ -175,7 +174,7 @@ export const useChatHub = () => {
   const markMessagesAsRead = async (conversationId, messageIds) => {
     if (connection?.state === signalR.HubConnectionState.Connected && messageIds.length > 0) {
       try {
-        console.log(`📖 Marking ${messageIds.length} messages as read in conversation ${conversationId}`);
+        console.log(`Marking ${messageIds.length} messages as read in conversation ${conversationId}`);
         
         await connection.invoke("MarkMessagesAsRead", {
           ConversationId: conversationId,
@@ -199,7 +198,6 @@ export const useChatHub = () => {
 
   const getConversationUnreadCount = (conversationId) => {
     const count = unreadCounts[conversationId] || 0;
-    console.log(`📊 Getting unread count for ${conversationId}: ${count}`);
     return count;
   };
 
