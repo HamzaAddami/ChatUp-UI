@@ -31,12 +31,10 @@ export const useChatHub = () => {
         .then(() => {
           console.log("✅ SignalR Connected");
 
-          // ==================== Messages ====================
           connection.on("ReceiveMessage", (notification) => {
             console.log("New message received:", notification);
             setMessages((prev) => [notification.message, ...prev]);
             
-            // N'incrémenter le compteur QUE si le message n'est pas de moi
             if (notification.message.senderId !== user?.id) {
               setUnreadCounts((prev) => ({
                 ...prev,
@@ -46,13 +44,10 @@ export const useChatHub = () => {
             }
           });
 
-          // ==================== Messages Lus ====================
           connection.on("MessageRead", (statusNotification) => {
             console.log("✓✓ Message read event:", statusNotification);
-            // Ne rien faire ici - le ChatScreen s'en occupe localement
           });
 
-          // ==================== Compteur mis à jour ====================
           connection.on("UpdateUnreadCount", (conversationId, count) => {
             console.log(`🔔 Update unread count for ${conversationId}: ${count}`);
             setUnreadCounts((prev) => ({
@@ -61,7 +56,6 @@ export const useChatHub = () => {
             }));
           });
 
-          // ==================== Statut En Ligne ====================
           connection.on("UserOnline", (userId) => {
             console.log("🟢 User online:", userId);
             setOnlineUsers((prev) => {
@@ -80,7 +74,6 @@ export const useChatHub = () => {
             });
           });
 
-          // ==================== Typing Indicator ====================
           connection.on("UserTyping", (notif) => {
             console.log("User typing:", notif);
             setTypingStatus((prev) => ({
@@ -91,7 +84,6 @@ export const useChatHub = () => {
               },
             }));
 
-            // Auto-clear typing status after 3 seconds
             if (notif.isTyping) {
               setTimeout(() => {
                 setTypingStatus((prev) => ({
@@ -105,12 +97,10 @@ export const useChatHub = () => {
             }
           });
 
-          // ==================== Compteur de messages non lus ====================
           connection.on("UnreadCounts", (counts) => {
             setUnreadCounts(counts);
           });
 
-          // ==================== Gestion des erreurs ====================
           connection.on("Error", (errorMessage) => {
             console.error("SignalR Error:", errorMessage);
             setErrors((prev) => [
@@ -123,14 +113,12 @@ export const useChatHub = () => {
           console.error("SignalR Connection Error:", err);
         });
 
-      // Gestion de la reconnexion
       connection.onreconnecting((error) => {
         console.log("Reconnecting...", error);
       });
 
       connection.onreconnected((connectionId) => {
         console.log("✅ Reconnected! ConnectionId:", connectionId);
-        // Rafraîchir les compteurs après reconnexion
         if (connection?.state === signalR.HubConnectionState.Connected) {
           connection.invoke("GetUnreadCounts").catch(err => 
             console.error("Error refreshing counts after reconnect:", err)
@@ -149,7 +137,6 @@ export const useChatHub = () => {
     }
   }, [connection, user?.id]);
 
-  // ==================== Méthodes Helper ====================
 
   const sendTyping = async (conversationId, isTyping) => {
     if (connection?.state === signalR.HubConnectionState.Connected) {
@@ -181,7 +168,6 @@ export const useChatHub = () => {
           MessageIds: messageIds,
         });
         
-        // NE PAS mettre à jour localement - attendre la réponse du serveur via UpdateUnreadCount
       } catch (err) {
         console.error("Error marking messages as read:", err);
       }

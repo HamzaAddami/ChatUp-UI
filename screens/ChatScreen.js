@@ -72,12 +72,10 @@ export default function ChatScreen({ route, navigation }) {
     };
   }, [connection, conversationId, connection?.state]);
 
-  // Charger l'historique au montage
   useEffect(() => {
     loadHistory();
   }, []);
 
-  // Gérer les nouveaux messages en temps réel
   useEffect(() => {
     if (liveMessages.length > 0) {
       const newMsgs = liveMessages.filter(
@@ -89,7 +87,6 @@ export default function ChatScreen({ route, navigation }) {
       if (newMsgs.length > 0) {
         processMessages(newMsgs, true);
 
-        // Marquer comme lu UNIQUEMENT si c'est l'écran actif et le message vient de quelqu'un d'autre
         if (navigation.isFocused()) {
           const newMessageIds = newMsgs
             .filter((m) => m.senderId !== user.id)
@@ -105,7 +102,6 @@ export default function ChatScreen({ route, navigation }) {
     }
   }, [liveMessages]);
 
-  // Marquer comme lu quand on revient sur l'écran
   useEffect(() => {
     const unsubscribeFocus = navigation.addListener("focus", () => {
       const unreadIds = messages
@@ -120,14 +116,12 @@ export default function ChatScreen({ route, navigation }) {
     return unsubscribeFocus;
   }, [navigation, messages]);
 
-  // Écouter les mises à jour de statut de lecture
   useEffect(() => {
     if (!connection) return;
 
     const handleMessageRead = (statusNotification) => {
       console.log("✓✓ Message read update in ChatScreen:", statusNotification);
       
-      // Mettre à jour les messages localement
       setMessages((prev) => 
         prev.map(msg => {
           if (statusNotification.messageId === msg.id || 
@@ -156,7 +150,6 @@ export default function ChatScreen({ route, navigation }) {
     };
   }, [connection, connection?.state]);
 
-  // Afficher les erreurs SignalR
   useEffect(() => {
     if (errors && errors.length > 0) {
       const lastError = errors[errors.length - 1];
@@ -164,7 +157,6 @@ export default function ChatScreen({ route, navigation }) {
     }
   }, [errors]);
 
-  // Bouton de blocage dans le header
   useEffect(() => {
     navigation.setOptions({
       headerRight: () => (
@@ -226,7 +218,6 @@ export default function ChatScreen({ route, navigation }) {
       const res = await api.get(`/messages/conversation/${conversationId}`);
       await processMessages(res.data);
 
-      // Marquer tous les messages non lus comme lus
       const unreadIds = res.data
         .filter((m) => m.senderId !== user.id && !m.readBy?.includes(user.id))
         .map((m) => m.id);
