@@ -25,10 +25,10 @@ import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 
-const iosClientId = process.env.iosClientId;
-const androidClientId = process.env.androidClientId;
-const webClientId = process.env.webClientId;
- 
+const iosClientId = `${process.env.iosClientId}`;
+const androidClientId = `${process.env.androidClientId}`;
+const webClientId = `${process.env.webClientId}`;
+
 WebBrowser.maybeCompleteAuthSession();
 
 export default function FirebaseLoginScreen({ navigation }) {
