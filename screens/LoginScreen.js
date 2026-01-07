@@ -1,11 +1,12 @@
 import React, { useState, useContext } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
+import useAuthStore from '../store/useAuthStore';
 
 export default function LoginScreen({ navigation }) {
   const [phone, setPhone] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useContext(AuthContext);
+  const { login } = useAuthStore();
 
   const handleLogin = async () => {
     setIsLoading(true);

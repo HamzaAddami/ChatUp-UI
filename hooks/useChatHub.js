@@ -181,7 +181,6 @@ export const useChatHub = () => {
           MessageIds: messageIds,
         });
         
-        // NE PAS mettre à jour localement - attendre la réponse du serveur via UpdateUnreadCount
       } catch (err) {
         console.error("Error marking messages as read:", err);
       }
