@@ -239,7 +239,7 @@ export default function ChatScreen({ route, navigation }) {
 
     if (text.length > 0 && !isTyping) {
       setIsTyping(true);
-      sendTyping(conversationId, true);z
+      sendTyping(conversationId, true);
     }
 
     if (typingTimeoutRef.current) {

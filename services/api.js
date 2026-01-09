@@ -2,7 +2,7 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-const Ip = "192.168.137.162";
+const Ip = "192.168.1.2";
 
 const API_URL = `http://${Ip}:5182/api`;
 
